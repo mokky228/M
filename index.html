@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>AI Pose Game</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/pose@latest"></script>
+
+<style>
+body {
+  margin: 0;
+  background: #0f172a;
+  color: white;
+  font-family: Arial, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+.box {
+  background: #1e293b;
+  padding: 20px;
+  border-radius: 16px;
+  width: 360px;
+  text-align: center;
+}
+
+canvas {
+  width: 100%;
+  border-radius: 12px;
+}
+
+.score {
+  font-size: 22px;
+  margin: 10px 0;
+}
+
+.pose {
+  font-size: 18px;
+  color: #38bdf8;
+}
+
+button {
+  background: #38bdf8;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 16px;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="box">
+  <h2>🎮 AI Pose Game</h2>
+
+  <button onclick="init()">▶ Start Camera</button>
+
+  <div class="score">คะแนน: <span id="score">0</span></div>
+  <div class="pose">ท่าปัจจุบัน: <span id="pose">-</span></div>
+  <canvas id="canvas"></canvas>
+</div>
+
+<script>
+const URL = "https://teachablemachine.withgoogle.com/models/nu7p8H_8b/";
+
+let model, webcam, ctx;
+let score = 0;
+let lastPose = "";
+let started = false;
+
+async function init() {
+  if (started) return;
+  started = true;
+
+  try {
+    const modelURL = URL + "model.json";
+    const metadataURL = URL + "metadata.json";
+
+    model = await tmPose.load(modelURL, metadataURL);
+
+    webcam = new tmPose.Webcam(360, 270, true);
+    await webcam.setup();   // ขอสิทธิ์กล้อง
+    await webcam.play();
+
+    const canvas = document.getElementById("canvas");
+    canvas.width = 360;
+    canvas.height = 270;
+    ctx = canvas.getContext("2d");
+
+    window.requestAnimationFrame(loop);
+
+  } catch (err) {
+    alert("ไม่สามารถเปิดกล้องได้ ❌\nกรุณาเปิดผ่าน HTTPS หรือ GitHub Pages");
+    console.error(err);
+  }
+}
+
+async function loop() {
+  webcam.update();
+  await predict();
+  window.requestAnimationFrame(loop);
+}
+
+async function predict() {
+  const { posenetOutput } = await model.estimatePose(webcam.canvas);
+  const prediction = await model.predict(posenetOutput);
+
+  let maxProb = 0;
+  let currentPose = "-";
+
+  prediction.forEach(p => {
+    if (p.probability > maxProb) {
+      maxProb = p.probability;
+      currentPose = p.className;
+    }
+  });
+
+  document.getElementById("pose").innerText = currentPose;
+
+  if (maxProb > 0.8 && currentPose !== lastPose) {
+    score += 10;
+    document.getElementById("score").innerText = score;
+    lastPose = currentPose;
+  }
+
+  ctx.drawImage(webcam.canvas, 0, 0);
+}
+</script>
+
+</body>
+</html>
